@@ -1,0 +1,23 @@
+services:
+  app:
+    image: simplizio/memmouse-next-ui:latest   # ← but you can also build
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      REDIS_URL: redis://redis:6379
+      APP_URL: http://localhost:3000
+      DEV_AUTOSEED: "1"   # for demo only, remove this in production
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+
+volumes:
+  redis-data:
