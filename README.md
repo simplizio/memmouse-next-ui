@@ -8,6 +8,8 @@ A minimal control plane for **projects / namespaces / services / data contracts*
     - Freeze/Unfreeze, usage & metrics
     - **Edit policy** (quota, default TTL, eviction)
     - **Service bindings** with key patterns, **scopes**, and **rate limits (read/write RPS)**
+- Services catalog: list/create/edit/delete, **rotate token**, **download config**
+- Config API for agents (per-service, token-protected)
 - Project wizard & Namespace wizard (cancel/close, ESC)
 - Sticky glass navbar, dynamic sidebar, breadcrumbs
 - Redis-backed storage (no Postgres)
@@ -57,17 +59,35 @@ All routes run on nodejs runtime (not Edge).
 - `DELETE /api/projects/:id/namespaces/:nsId` — remove
 
 ### Service bindings (per namespace)
-- `GET /api/projects/:id/namespaces/:nsId/bindings` — list
-- `POST /api/projects/:id/namespaces/:nsId/bindings` — upsert  
-  body: `{ serviceId, serviceName, permissions, patterns[], scopes[], rate:{readRps,writeRps} }`
-- `PATCH /api/projects/:id/namespaces/:nsId/bindings/:serviceId` — update
-- `DELETE /api/projects/:id/namespaces/:nsId/bindings/:serviceId` — delete
+- GET /api/projects/:id/namespaces/:nsId/bindings — list
+
+- POST /api/projects/:id/namespaces/:nsId/bindings — upsert
+- body: { serviceId, serviceName, permissions, patterns[], scopes[], rate:{readRps,writeRps} }
+
+- GET /api/projects/:id/namespaces/:nsId/bindings/:serviceId — get one
+
+- PATCH /api/projects/:id/namespaces/:nsId/bindings/:serviceId — update
+
+- DELETE /api/projects/:id/namespaces/:nsId/bindings/:serviceId — delete
+
+### Services
+- GET /api/projects/:id/services — list
+- POST /api/projects/:id/services — create { id, name, scopes[] }
+- GET /api/projects/:id/services/:serviceId — get
+- PATCH /api/projects/:id/services/:serviceId — edit { name, scopes[] }
+- DELETE /api/projects/:id/services/:serviceId — delete
+- POST /api/projects/:id/services/:serviceId/rotate — issue new active token
+- GET /api/projects/:id/services/:serviceId/bindings — list nsIds bound to service
+- GET /api/projects/:id/services/:serviceId/config — agent config (requires Authorization: Bearer <token>)
 
 ### Events (stub)
 - `GET /api/projects/:id/events?nsId=...` — returns `{ items: [] }` (placeholder)
 
-### Seed
-- `GET /api/dev/seed?force=1&drop=1` — reseed demo data
+### Dev tools
+- GET /api/dev/seed?force=1&drop=1 — reseed demo data
+
+- GET /api/dev/reindex?drop=1 — rebuild reverse index for bindings
+  - In production require ?force=1
 
 ## Project structure (high level)
 ```bash
@@ -105,6 +125,24 @@ src/
     - `mm:binding:{projectId}:{nsId}:{serviceId}` — JSON
 - Bootstrap marker: `mm:bootstrapped`
 
+## Project overview (what you see)
+- Capacity: total Used/Quota with progress
+
+- Inventory: counts (Namespaces, Services, Bindings)
+
+- Ops snapshot: aggregated reads/sec & writes/sec
+
+- Top namespaces: by used bytes (top 5)
+
+- Recent events: dev stub feed
+
+## Security notes
+- Service config requires a Bearer token (stored per service).
+
+- For demo, config includes REDIS_URL; in real use, materialize Redis ACLs per binding.
+
+
+
 ## Try it
 1) Start dev: `npm run dev`
 2) Open `/projects` → pick a project
@@ -124,11 +162,12 @@ src/
 - **Service bindings**: patterns, scopes, rate limits (read/write RPS)
 - Glass UI: sticky navbar, dynamic sidebar, breadcrumbs
 - Dev seeding & Redis keys layout
+- Services & bindings
+  - Service catalog (CRUD) — (list/create/edit/delete + details). 
+  - API tokens: issue/rotate — (issue upon creation, also Rotate).
 
 ### 🔜 Next (core)
 - **Services & bindings**
-    - Service catalog (CRUD)
-    - API tokens: issue/rotate/revoke; per-service secrets
     - Redis ACL materialization per binding (+key patterns)
     - Rate-limit enforcement path (gateway/sidecar), soft/hard
 - **Data contracts**
