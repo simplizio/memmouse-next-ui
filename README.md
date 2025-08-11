@@ -4,7 +4,10 @@ A minimal control plane for **projects / namespaces / services / data contracts*
 
 ## Features
 - Projects overview with quotas & usage
-- Namespaces list, freeze/unfreeze, quotas/TTL/eviction
+- Namespaces list + details:
+    - Freeze/Unfreeze, usage & metrics
+    - **Edit policy** (quota, default TTL, eviction)
+    - **Service bindings** with key patterns, **scopes**, and **rate limits (read/write RPS)**
 - Project wizard & Namespace wizard (cancel/close, ESC)
 - Sticky glass navbar, dynamic sidebar, breadcrumbs
 - Redis-backed storage (no Postgres)
@@ -42,21 +45,29 @@ npm run dev
 ## API (dev)
 All routes run on nodejs runtime (not Edge).
 
-- GET /api/projects — list projects
+### Projects
+- `GET /api/projects` — list
+- `POST /api/projects` — create
 
-- POST /api/projects — create project
+### Namespaces
+- `GET /api/projects/:id/namespaces` — list
+- `POST /api/projects/:id/namespaces` — create
+- `GET /api/projects/:id/namespaces/:nsId` — get
+- `PATCH /api/projects/:id/namespaces/:nsId` — **update policy/status** (e.g. `{ ttl, eviction, quotaBytes }`)
+- `DELETE /api/projects/:id/namespaces/:nsId` — remove
 
-- GET /api/projects/:id/namespaces — list namespaces
+### Service bindings (per namespace)
+- `GET /api/projects/:id/namespaces/:nsId/bindings` — list
+- `POST /api/projects/:id/namespaces/:nsId/bindings` — upsert  
+  body: `{ serviceId, serviceName, permissions, patterns[], scopes[], rate:{readRps,writeRps} }`
+- `PATCH /api/projects/:id/namespaces/:nsId/bindings/:serviceId` — update
+- `DELETE /api/projects/:id/namespaces/:nsId/bindings/:serviceId` — delete
 
-- POST /api/projects/:id/namespaces — create namespace
+### Events (stub)
+- `GET /api/projects/:id/events?nsId=...` — returns `{ items: [] }` (placeholder)
 
-- GET /api/projects/:id/namespaces/:nsId — get one
-
-- PATCH /api/projects/:id/namespaces/:nsId — update (e.g. status: "frozen")
-
-- DELETE /api/projects/:id/namespaces/:nsId — remove
-
-- GET /api/dev/seed?force=1&drop=1 — reseed demo data
+### Seed
+- `GET /api/dev/seed?force=1&drop=1` — reseed demo data
 
 ## Project structure (high level)
 ```bash
@@ -83,18 +94,82 @@ src/
 - Glass navbar + pill breadcrumbs
 
 ## Redis tips
-- Keys: mm:project:{id}, mm:idx:projects, mm:namespace:{projectId}:{nsId}, mm:idx:namespaces:{projectId}
+- Projects:
+    - `mm:idx:projects` — Set of project ids
+    - `mm:project:{id}` — JSON
+- Namespaces:
+    - `mm:idx:namespaces:{projectId}` — Set of namespace ids
+    - `mm:namespace:{projectId}:{nsId}` — JSON
+- **Bindings:**
+    - `mm:idx:bindings:{projectId}:{nsId}` — Set of `serviceId`
+    - `mm:binding:{projectId}:{nsId}:{serviceId}` — JSON
+- Bootstrap marker: `mm:bootstrapped`
 
-- Inspect with RedisInsight → search mm:*
+## Try it
+1) Start dev: `npm run dev`
+2) Open `/projects` → pick a project
+3) Go to **Namespaces** → **Open** a namespace
+4) In details:
+    - **Edit policy** → save (PATCHes Redis)
+    - **+ Bind service** → add patterns/scopes/rate limits
+    - Freeze/Unfreeze to toggle status
 
-## Roadmap (next)
-- Services & bindings (tokens/ACLs)
 
-- Data contracts (schemas, validation, migrations)
+## Roadmap
 
-- Pipelines/bridges (S3/OLAP, streams)
+### ✅ Done (demo)
+- Projects overview (Redis-backed)
+- Namespaces: list + details, usage, metrics, **Freeze/Unfreeze**
+- **Edit policy** (quota, default TTL, eviction) — PATCH
+- **Service bindings**: patterns, scopes, rate limits (read/write RPS)
+- Glass UI: sticky navbar, dynamic sidebar, breadcrumbs
+- Dev seeding & Redis keys layout
 
-- Live events & audit
+### 🔜 Next (core)
+- **Services & bindings**
+    - Service catalog (CRUD)
+    - API tokens: issue/rotate/revoke; per-service secrets
+    - Redis ACL materialization per binding (+key patterns)
+    - Rate-limit enforcement path (gateway/sidecar), soft/hard
+- **Data contracts**
+    - Contract registry (key patterns + JSON Schema)
+    - Validate on write (soft/hard), versions (v1→v2)
+    - Migration tool: rename by pattern, backfill, reindex
+    - Indexed fields (secondary indexes) and query API
+- **Pipelines / Bridges**
+    - Mirror namespace → S3 (snapshot + incremental)
+    - Ship to OLAP (ClickHouse) + status/health
+    - CDC via Redis Streams; **pause/resume**, replay window, DLQ/retries
+- **Live events & Audit**
+    - Event bus (Redis Pub/Sub + Streams)
+    - SSE/WebSocket with filters (project/ns/service)
+    - Audit log of control-plane actions; export
+
+### 🧭 Visualization (“Ant Trails”)
+- Flow map: Services ↔ Namespaces graph
+- Edge weights by ops/throughput/latency; live glow on activity
+- Drill-down by service/namespace; error hotspots
+
+### 📣 Quotas & Alerts
+- Enforce project/ns quotas with backpressure & kill switch
+- Alert rules (80/90/100, ops/latency/errors)
+- Notifiers: email/webhook (pluggable)
+
+### 🛡️ RBAC & Org
+- Roles: Owner/Admin/Dev/ReadOnly
+- Org/workspace switcher; settings
+- (Later) SCIM bootstrap
+
+### 💾 Backups & Snapshots
+- RDB/AOF snapshots per namespace/project
+- Manual snapshot/restore + **dry-run** to sandbox
+
+### 🧱 Hardening & DX
+- OpenAPI spec + SDKs (Node/Go)
+- Request validation, input schemas
+- Logging (pino), metrics (Prom), healthz/readyz
+- Tests: unit for repos/services, basic e2e
+- Config/secrets, Redis TLS, Docker Compose
 
 
 ## License
