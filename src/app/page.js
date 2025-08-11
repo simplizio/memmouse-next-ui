@@ -1,95 +1,61 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+import LandingHome from "@/components/landing/LandingHome";
 
 export default function Home() {
-  return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol>
-          <li>
-            Get started by editing <code>src/app/page.js</code>.
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
-
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-            className={styles.secondary}
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className={styles.footer}>
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
-  );
+  return <LandingHome />;
 }
+
+// "use client";
+// import ProjectsOverview from "@/components/projects/ProjectsOverview";
+//
+// export default function HomePage() {
+//   return <ProjectsOverview />;
+// }
+
+// import StickyNavbar from "@/components/navigation/StickyNavbar";
+// import Sidebar from "@/components/navigation/Sidebar";
+//
+// export default function HomePage() {
+//   return (
+//       <>
+//         <StickyNavbar />
+//         <Sidebar />
+//
+//         {/* Основной контент: ниже navbar (pt-16) и правее сайдбара (ml-64) */}
+//         <main className="pt-16 ml-64 text-white">
+//           {/* секция 1 — во всю видимую высоту минус navbar */}
+//           <section className="min-h-[calc(100vh-4rem)] p-6 bg-slate-900">
+//             <div className="p-4 bg-pink-500 text-white rounded mb-4">
+//               TAILWIND TEST — должен быть розовым.
+//             </div>
+//
+//             <div className="max-w-7xl mx-auto">
+//               <h1 className="text-3xl font-bold mb-2">Memory-as-a-Service</h1>
+//               <p className="opacity-80">
+//                 Прокрути — верхняя панель и левый сайдбар остаются на месте.
+//               </p>
+//
+//               <div className="mt-8 grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
+//                 {Array.from({ length: 6 }).map((_, i) => (
+//                     <div key={i} className="rounded-xl bg-white/5 p-4 border border-white/10">
+//                       <div className="text-lg font-semibold">Card #{i + 1}</div>
+//                       <div className="text-sm opacity-70">какой‑то контент</div>
+//                     </div>
+//                 ))}
+//               </div>
+//             </div>
+//           </section>
+//
+//           {/* секция 2 — тоже «на экран» */}
+//           <section className="min-h-[calc(100vh-4rem)] p-6 bg-slate-950 border-t border-white/10">
+//             <div className="max-w-7xl mx-auto">
+//               <h2 className="text-2xl font-bold mb-4">Вторая секция</h2>
+//               <div className="grid gap-4 md:grid-cols-2">
+//                 <div className="h-64 rounded-xl bg-white/5 border border-white/10" />
+//                 <div className="h-64 rounded-xl bg-white/5 border border-white/10" />
+//               </div>
+//             </div>
+//           </section>
+//         </main>
+//       </>
+//   );
+// }
