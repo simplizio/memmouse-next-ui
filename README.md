@@ -1,36 +1,101 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# MemMouse — Control Plane (Demo)
 
-## Getting Started
+A minimal control plane for **projects / namespaces / services / data contracts** on top of Redis. Dark, glassy UI (Next.js App Router) with live-ready structure for policies, events, and pipelines.
 
-First, run the development server:
+## Features
+- Projects overview with quotas & usage
+- Namespaces list, freeze/unfreeze, quotas/TTL/eviction
+- Project wizard & Namespace wizard (cancel/close, ESC)
+- Sticky glass navbar, dynamic sidebar, breadcrumbs
+- Redis-backed storage (no Postgres)
+- Dev seeding via API
+
+## Stack
+- **Next.js** (App Router), **Node runtime**
+- **Tailwind v4**
+- **Redis** via `ioredis`
+- Icons: `lucide-react`
+
+## Quick start
+**Prereqs:** Node 18+ (20+ recommended), Redis running locally.
 
 ```bash
+# 1) install
+npm i
+
+# 2) env
+cp .env.local.example .env.local
+# edit if needed:
+# REDIS_URL=redis://localhost:6379
+# DEV_AUTOSEED=1
+
+# 3) dev
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Seed dev data (projects + namespaces):
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+- Auto: open /projects (dev calls seeder once)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- Manual: GET http://localhost:3000/api/dev/seed?force=1&drop=1
 
-## Learn More
+## API (dev)
+All routes run on nodejs runtime (not Edge).
 
-To learn more about Next.js, take a look at the following resources:
+- GET /api/projects — list projects
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- POST /api/projects — create project
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- GET /api/projects/:id/namespaces — list namespaces
 
-## Deploy on Vercel
+- POST /api/projects/:id/namespaces — create namespace
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- GET /api/projects/:id/namespaces/:nsId — get one
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- PATCH /api/projects/:id/namespaces/:nsId — update (e.g. status: "frozen")
+
+- DELETE /api/projects/:id/namespaces/:nsId — remove
+
+- GET /api/dev/seed?force=1&drop=1 — reseed demo data
+
+## Project structure (high level)
+```bash
+
+src/
+  app/
+    api/…                 # route handlers (Redis, node runtime)
+    projects/…            # pages & nested routes (overview, tabs)
+  components/…            # ui, navigation, projects, namespaces
+  server/
+    redis/client.js       # ioredis client
+    repos/…               # ProjectRepo, NamespaceRepo
+    services/bootstrap.js # seeding logic
+  lib/
+    mockProjects.js
+    mockNamespaces.js
+```
+
+## Styling
+- Tailwind v4 (@import "tailwindcss"; in globals.css)
+
+- Reusable helpers: mm-glass, mm-input, mm-select
+
+- Glass navbar + pill breadcrumbs
+
+## Redis tips
+- Keys: mm:project:{id}, mm:idx:projects, mm:namespace:{projectId}:{nsId}, mm:idx:namespaces:{projectId}
+
+- Inspect with RedisInsight → search mm:*
+
+## Roadmap (next)
+- Services & bindings (tokens/ACLs)
+
+- Data contracts (schemas, validation, migrations)
+
+- Pipelines/bridges (S3/OLAP, streams)
+
+- Live events & audit
+
+
+## License
+Licensed under Apache 2.0 license
