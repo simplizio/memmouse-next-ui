@@ -16,20 +16,3 @@ export async function POST(req) {
     const res = await ensureSeeded({ force, drop });
     return NextResponse.json(res);
 }
-
-
-
-// import { NextResponse } from "next/server";
-// import { ensureSeeded } from "@/server/services/bootstrap.js";
-//
-// export const runtime = "nodejs";
-//
-// export async function GET() {
-//     const res = await ensureSeeded();
-//     return NextResponse.json(res);
-// }
-//
-// export async function POST() {
-//     const res = await ensureSeeded();
-//     return NextResponse.json(res);
-// }

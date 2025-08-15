@@ -28,28 +28,3 @@ export default async function ProjectLayout({ children, params }) {
         </div>
     );
 }
-
-
-
-// import StickyNavbar from "@/components/navigation/StickyNavbar";
-// import Breadcrumbs from "@/components/navigation/Breadcrumbs";
-// import ProjectSidebar from "@/components/projects/ProjectSidebar";
-//
-// export default async function ProjectLayout({ children, params }) {
-//     const { id } = await params;
-//     return (
-//         <div className="min-h-screen">
-//             <StickyNavbar />
-//             <Breadcrumbs items={[
-//                 { label: "Workspace", href: "/" },
-//                 { label: "Projects", href: "/projects" },
-//                 { label: id },
-//             ]}/>
-//             <div className="pt-2 px-4 flex gap-4">
-//                 {/* sidebar stays mounted, content below switches client-side */}
-//                 <ProjectSidebar projectId={id} />
-//                 <main className="flex-1 min-w-0 p-2">{children}</main>
-//             </div>
-//         </div>
-//     );
-// }

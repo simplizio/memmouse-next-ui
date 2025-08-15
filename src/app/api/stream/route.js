@@ -1,4 +1,4 @@
-export const runtime = "edge"; // работает и в JS
+export const runtime = "edge";
 
 export async function GET(req) {
     const { readable, writable } = new TransformStream();

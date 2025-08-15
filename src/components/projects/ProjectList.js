@@ -15,30 +15,3 @@ export default function ProjectList({ projects, onOpen }) {
         </div>
     );
 }
-
-// "use client";
-// import ProjectCard from "@/components/projects/ProjectCard";
-//
-// export default function ProjectList({ projects, onOpen }) {
-//     if (!projects?.length) {
-//         return (
-//             <div style={{padding: 24, opacity: 0.7}}>No projects yet. Create the first one.</div>
-//         );
-//     }
-//
-//     return (
-//         <div style={gridStyles.grid}>
-//             {projects.map(p => (
-//                 <ProjectCard key={p.id} project={p} onOpen={() => onOpen?.(p)} />
-//             ))}
-//         </div>
-//     );
-// }
-//
-// const gridStyles = {
-//     grid: {
-//         display: "grid",
-//         gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-//         gap: 12
-//     }
-// };
