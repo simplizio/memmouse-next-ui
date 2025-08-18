@@ -44,23 +44,6 @@ export const BindingRepo = {
             .exec();
     },
 
-    // async remove(projectId, nsId, serviceId) {
-    //     await redis
-    //         .multi()
-    //         .del(KEY(projectId, nsId, serviceId))
-    //         .srem(IDX_NS(projectId, nsId), serviceId)
-    //         .srem(IDX_SVC(projectId, serviceId), nsId)
-    //         .exec();
-    // },
-
-    // async remove(projectId, nsId, serviceId) {
-    //     const pipe = redis.pipeline();
-    //     pipe.del(BIND_KEY(projectId, nsId, serviceId));
-    //     pipe.srem(NS_IDX(projectId, nsId), serviceId);
-    //     pipe.srem(SVC_IDX(projectId, serviceId), nsId);
-    //     await pipe.exec();
-    // },
-
     // new: quickly get nsId list for the service
     async listNamespacesForService(projectId, serviceId) {
         return await redis.smembers(IDX_SVC(projectId, serviceId));
