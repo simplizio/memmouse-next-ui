@@ -4,9 +4,14 @@ import { useParams, useRouter } from "next/navigation";
 import { useProject } from "@/components/projects/ProjectProvider";
 import { Button } from "@/components/ui/button";
 import ServiceEditModal from "@/components/services/ServiceEditModal";
+import AclApplyModal from "@/components/services/AclApplyModal";
+import QuickBindModal from "@/components/services/QuickBindModal";
+import ServiceAclPanel from "@/components/services/ServiceAclPanel";
+import ServiceTokensPanel from "@/components/services/ServiceTokensPanel";
 
 export default function ServiceDetailsPage() {
     const { id: projectId, name: projectName } = useProject();
+    const [aclOpen, setAclOpen] = useState(false);
     const { serviceId } = useParams();
     const router = useRouter();
 
@@ -17,52 +22,169 @@ export default function ServiceDetailsPage() {
     const [allNamespaces, setAllNamespaces] = useState([]);
     const [editOpen, setEditOpen] = useState(false);
 
-    useEffect(() => {
-        let cancel = false;
-        async function load() {
-            try {
-                setError(null);
-                const [svcRes, listRes] = await Promise.all([
-                    fetch(`/api/projects/${projectId}/services/${serviceId}`, { cache: "no-store" }),
-                    fetch(`/api/projects/${projectId}/services/${serviceId}/bindings`, { cache: "no-store" }),
-                ]);
-                if (!svcRes.ok) throw new Error(`Service HTTP ${svcRes.status}`);
-                if (!listRes.ok) throw new Error(`Bindings HTTP ${listRes.status}`);
-                const svcJson = await svcRes.json();
-                const { nsIds } = await listRes.json();
-                const details = await Promise.all(
-                    (nsIds || []).map(async (nsId) => {
-                        const [nsRes, bRes] = await Promise.all([
-                            fetch(`/api/projects/${projectId}/namespaces/${nsId}`, { cache: "no-store" }),
-                            fetch(`/api/projects/${projectId}/namespaces/${nsId}/bindings/${serviceId}`, { cache: "no-store" }),
-                        ]);
-                        if (!nsRes.ok) return null;
-                        const ns = await nsRes.json();
-                        const binding = bRes.ok ? await bRes.json() : null;
-                        return { ns, binding };
-                    })
-                );
-                const nsList = await fetch(`/api/projects/${projectId}/namespaces`, { cache: "no-store" })
-                    .then(r => r.ok ? r.json() : { items: [] });
-
-                if (!cancel) {
-                    setSvc(svcJson);
-                    setBindings(details.filter(Boolean));
-                    setAllNamespaces(nsList.items || []);
-                }
-            } catch (e) { if (!cancel) setError(String(e)); }
+    // ← примем обновлённый сервис сразу из ответа apply (или fallback на рефетч)
+    function handleServiceUpdated(next) {
+        if (next && next.id) {
+            setSvc(next);
+        } else {
+            refreshService();
         }
-        if (projectId && serviceId) load();
-        return () => { cancel = true; };
+    }
+
+    function refreshService() {
+        let alive = true;
+        (async () => {
+            try {
+                       setError(null);
+                       const [svcRes, listRes] = await Promise.all([
+                             fetch(`/api/projects/${projectId}/services/${serviceId}`, { cache: "no-store" }),
+                             fetch(`/api/projects/${projectId}/services/${serviceId}/bindings`, { cache: "no-store" }),
+                           ]);
+                       if (!svcRes.ok) throw new Error(`Service HTTP ${svcRes.status}`);
+                       if (!listRes.ok) throw new Error(`Bindings HTTP ${listRes.status}`);
+                       const svcJson = await svcRes.json();
+                       const { nsIds } = await listRes.json();
+                       const details = await Promise.all(
+                             (nsIds || []).map(async (nsId) => {
+                                   const [nsRes, bRes] = await Promise.all([
+                                         fetch(`/api/projects/${projectId}/namespaces/${nsId}`, { cache: "no-store" }),
+                                         fetch(`/api/projects/${projectId}/namespaces/${nsId}/bindings/${serviceId}`, { cache: "no-store" }),
+                                       ]);
+                                   if (!nsRes.ok) return null;
+                                   const ns = await nsRes.json();
+                                   const binding = bRes.ok ? await bRes.json() : null;
+                                   return { ns, binding };
+                                 })
+                           );
+                       const nsList = await fetch(`/api/projects/${projectId}/namespaces`, { cache: "no-store" })
+                             .then(r => r.ok ? r.json() : { items: [] });
+                       if (!alive) return;
+                       setSvc(svcJson);
+                       setBindings(details.filter(Boolean));
+                       setAllNamespaces(nsList.items || []);
+            } catch (e) {
+                       if (alive) setError(String(e));
+            }
+        })();
+        // опционально: верни “чистильщик” если зовёшь из useEffect
+        return () => { alive = false; };
+    }
+
+    // в useEffect
+    useEffect(() => {
+        if (!projectId || !serviceId) return;
+        const cleanup = refreshService(); // возвращает void или функцию cleanup
+        return cleanup;                   // если используешь alive-флаг
     }, [projectId, serviceId]);
+
+    // async function refreshService() {
+    //     try {
+    //         setError(null);
+    //         const [svcRes, listRes] = await Promise.all([
+    //             fetch(`/api/projects/${projectId}/services/${serviceId}`, { cache: "no-store" }),
+    //             fetch(`/api/projects/${projectId}/services/${serviceId}/bindings`, { cache: "no-store" }),
+    //         ]);
+    //         if (!svcRes.ok) throw new Error(`Service HTTP ${svcRes.status}`);
+    //         if (!listRes.ok) throw new Error(`Bindings HTTP ${listRes.status}`);
+    //         const svcJson = await svcRes.json();
+    //         const { nsIds } = await listRes.json();
+    //         const details = await Promise.all(
+    //             (nsIds || []).map(async (nsId) => {
+    //                           const [nsRes, bRes] = await Promise.all([
+    //                                 fetch(`/api/projects/${projectId}/namespaces/${nsId}`, { cache: "no-store" }),
+    //                                 fetch(`/api/projects/${projectId}/namespaces/${nsId}/bindings/${serviceId}`, { cache: "no-store" }),
+    //                               ]);
+    //                           if (!nsRes.ok) return null;
+    //                           const ns = await nsRes.json();
+    //                           const binding = bRes.ok ? await bRes.json() : null;
+    //                           return { ns, binding };
+    //                         })
+    //         );
+    //         const nsList = await fetch(`/api/projects/${projectId}/namespaces`, { cache: "no-store" })
+    //                             .then(r => r.ok ? r.json() : { items: [] });
+    //         setSvc(svcJson);
+    //         setBindings(details.filter(Boolean));
+    //         setAllNamespaces(nsList.items || []);
+    //     } catch (e) {
+    //         setError(String(e));
+    //     }
+    // }
+
+    // useEffect(
+    //     () => {
+    //         if (!projectId || !serviceId) return;
+    //         let alive = true;
+    //
+    //         (async () => {
+    //             try {
+    //                 await refreshService();
+    //             } catch (e) {
+    //                 // опционально: если refreshService не ловит ошибки
+    //                 if (alive) setError(String(e));
+    //             }
+    //         })();
+    //
+    //         return () => { alive = false; };
+    //         },
+    //     [projectId, serviceId]
+    // );
+
+    // useEffect(() => {
+    //     let cancel = false;
+    //     async function load() {
+    //         try {
+    //             setError(null);
+    //             const [svcRes, listRes] = await Promise.all([
+    //                 fetch(`/api/projects/${projectId}/services/${serviceId}`, { cache: "no-store" }),
+    //                 fetch(`/api/projects/${projectId}/services/${serviceId}/bindings`, { cache: "no-store" }),
+    //             ]);
+    //             if (!svcRes.ok) throw new Error(`Service HTTP ${svcRes.status}`);
+    //             if (!listRes.ok) throw new Error(`Bindings HTTP ${listRes.status}`);
+    //             const svcJson = await svcRes.json();
+    //             const { nsIds } = await listRes.json();
+    //             const details = await Promise.all(
+    //                 (nsIds || []).map(async (nsId) => {
+    //                     const [nsRes, bRes] = await Promise.all([
+    //                         fetch(`/api/projects/${projectId}/namespaces/${nsId}`, { cache: "no-store" }),
+    //                         fetch(`/api/projects/${projectId}/namespaces/${nsId}/bindings/${serviceId}`, { cache: "no-store" }),
+    //                     ]);
+    //                     if (!nsRes.ok) return null;
+    //                     const ns = await nsRes.json();
+    //                     const binding = bRes.ok ? await bRes.json() : null;
+    //                     return { ns, binding };
+    //                 })
+    //             );
+    //             const nsList = await fetch(`/api/projects/${projectId}/namespaces`, { cache: "no-store" })
+    //                 .then(r => r.ok ? r.json() : { items: [] });
+    //
+    //             if (!cancel) {
+    //                 setSvc(svcJson);
+    //                 setBindings(details.filter(Boolean));
+    //                 setAllNamespaces(nsList.items || []);
+    //             }
+    //         } catch (e) { if (!cancel) setError(String(e)); }
+    //     }
+    //     if (projectId && serviceId) load();
+    //     return () => { cancel = true; };
+    // }, [projectId, serviceId]);
 
     const activeToken = useMemo(() => (svc?.tokens || []).find(t => t.status === "active"), [svc]);
 
     async function rotateToken() {
-        const r = await fetch(`/api/projects/${projectId}/services/${serviceId}/rotate`, { method: "POST" });
+        //const r = await fetch(`/api/projects/${projectId}/services/${serviceId}/rotate`, { method: "POST" });
+        // исправлено: корректный API путь для ротации токена
+        const r = await fetch(`/api/projects/${projectId}/services/${serviceId}/tokens/rotate`, { method: "POST" });
+
         if (!r.ok) return alert(`Rotate HTTP ${r.status}`);
-        const { service } = await r.json();
-        setSvc(service);
+        //const { service } = await r.json();
+        //setSvc(service);
+
+        const { rotatedTo } = await r.json();
+        // после ротации перезагрузим сервис, чтобы увидеть актуальный список
+        await refreshService();
+        if (rotatedTo?.value) {
+            alert("New token issued. Copy it from the Tokens panel.");
+        }
     }
 
     async function downloadConfig() {
@@ -88,7 +210,7 @@ export default function ServiceDetailsPage() {
     }
 
     async function deleteService() {
-        if (!confirm("Delete this service? This will not remove data, only the catalog entry.")) return;
+        if (!confirm("Delete this service? Bindings and ACL user will be removed. Data in namespaces is not touched.")) return;
         const r = await fetch(`/api/projects/${projectId}/services/${serviceId}`, { method: "DELETE" });
         if (!r.ok) return alert(`Delete HTTP ${r.status}`);
         router.push(`/projects/${projectId}/services`);
@@ -117,11 +239,30 @@ export default function ServiceDetailsPage() {
                 </div>
                 <div className="flex gap-2">
                     <Button variant="ghost" onClick={() => setEditOpen(true)}>Edit</Button>
+                    <Button variant="ghost" onClick={() => setAclOpen(true)}>Apply ACL</Button>
                     <Button variant="ghost" onClick={rotateToken}>Rotate token</Button>
                     <Button onClick={downloadConfig}>Download config</Button>
                     <Button variant="ghost" onClick={deleteService}>Delete</Button>
                 </div>
             </header>
+
+            {/*<ServiceAclPanel projectId={projectId} service={svc} onUpdated={refreshService} />*/}
+            {/*<div className="grid md:grid-cols-2 gap-4">*/}
+            {/*    <ServiceAclPanel projectId={projectId} service={svc} onUpdated={refreshService} />*/}
+            {/*    <ServiceTokensPanel projectId={projectId} service={svc} />*/}
+            {/*</div>*/}
+
+            <section className="mm-glass rounded-2xl p-4">
+                <ServiceAclPanel projectId={projectId} service={svc} onUpdated={refreshService} />
+            </section>
+
+            {/*<section className="mm-glass rounded-2xl p-4">*/}
+            {/*    <ServiceTokensPanel projectId={projectId} service={svc} />*/}
+            {/*</section>*/}
+
+            <section className="mm-glass rounded-2xl p-4">
+                <ServiceTokensPanel projectId={projectId} service={svc} />
+            </section>
 
             {/* Tokens */}
             <section className="mm-glass rounded-2xl p-4">
@@ -201,6 +342,7 @@ export default function ServiceDetailsPage() {
                     projectId={projectId}
                     service={{ id: svc.id, name: svc.name }}
                     namespaces={allNamespaces}
+                    open={true}
                     onClose={() => setQuickBindOpen(false)}
                     onSaved={(rec) => {
                         setBindings(prev => [{ ns: allNamespaces.find(n => n.id === rec.nsId), binding: rec }, ...(prev || [])]);
@@ -216,6 +358,12 @@ export default function ServiceDetailsPage() {
                 projectId={projectId}
                 onSaved={(updated) => setSvc(updated)}
             />
+            <AclApplyModal
+                open={aclOpen}
+                onClose={() => setAclOpen(false)}
+                projectId={projectId}
+                serviceId={serviceId}
+            />
         </div>
     );
 }
@@ -229,63 +377,101 @@ function Td({ children, mono=false, className="" }) {
 function mask(s) { return s ? s.slice(0, 6) + "…" + s.slice(-4) : "—"; }
 function copy(s) { navigator.clipboard.writeText(s).catch(() => {}); }
 
-/* QuickBindModal — оставляем как в предыдущей версии (без изменений) */
-function QuickBindModal({ projectId, service, namespaces, onClose, onSaved }) {
-    const [nsId, setNsId] = useState(namespaces[0]?.id || "");
-    const [permissions, setPermissions] = useState("R");
-    const [patterns, setPatterns] = useState("orders:*");
-    const [readRps, setReadRps] = useState(0);
-    const [writeRps, setWriteRps] = useState(0);
-    async function save() {
-        if (!nsId) return;
-        const body = {
-            serviceId: service.id,
-            serviceName: service.name,
-            permissions,
-            patterns: patterns.split(",").map(s => s.trim()).filter(Boolean),
-            rate: { readRps: Number(readRps || 0), writeRps: Number(writeRps || 0) },
-        };
-        const r = await fetch(`/api/projects/${projectId}/namespaces/${nsId}/bindings`, {
-            method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-        });
-        if (!r.ok) return alert(`Bind HTTP ${r.status}`);
-        const created = await r.json();
-        onSaved?.({ ...created, nsId });
-    }
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-            <div className="relative mm-glass rounded-2xl p-4 w-full max-w-xl border border-white/10">
-                <div className="text-lg font-semibold mb-2">Bind namespace</div>
-                <div className="grid gap-3">
-                    <Row label="Namespace">
-                        <select className="mm-select w-full" value={nsId} onChange={(e)=>setNsId(e.target.value)}>
-                            {namespaces.map(n => <option key={n.id} value={n.id}>{n.prefix}</option>)}
-                        </select>
-                    </Row>
-                    <Row label="Permissions">
-                        <select className="mm-select w-full" value={permissions} onChange={(e)=>setPermissions(e.target.value)}>
-                            <option value="R">Read</option><option value="W">Write</option><option value="RW">Read/Write</option>
-                        </select>
-                    </Row>
-                    <Row label="Key patterns">
-                        <input className="mm-input w-full" value={patterns} onChange={(e)=>setPatterns(e.target.value)} placeholder="orders:*,customers:*" />
-                    </Row>
-                    <Row label="Rate limits">
-                        <div className="grid grid-cols-2 gap-2">
-                            <input className="mm-input" type="number" min={0} placeholder="read rps" value={readRps} onChange={(e)=>setReadRps(e.target.value)} />
-                            <input className="mm-input" type="number" min={0} placeholder="write rps" value={writeRps} onChange={(e)=>setWriteRps(e.target.value)} />
-                        </div>
-                    </Row>
-                </div>
-                <div className="mt-4 flex justify-end gap-2">
-                    <Button variant="ghost" onClick={onClose}>Cancel</Button>
-                    <Button onClick={save} disabled={!nsId}>Bind</Button>
-                </div>
-            </div>
-        </div>
-    );
-}
+
+
+// /* QuickBindModal — оставляем как в предыдущей версии (без изменений) */
+// function QuickBindModal({ projectId, service, namespaces, onClose, onSaved }) {
+//     const [nsId, setNsId] = useState(namespaces[0]?.id || "");
+//     const [permissions, setPermissions] = useState("R");
+//     const [patterns, setPatterns] = useState("orders:*");
+//     const [readRps, setReadRps] = useState(0);
+//     const [writeRps, setWriteRps] = useState(0);
+//     const [applyAcl, setApplyAcl] = useState(true);
+//     const [aclPresets, setAclPresets] = useState(["kv_read","metrics"]); // по умолчанию под R
+//     const [aclExtra, setAclExtra] = useState("");
+//
+//     useEffect(()=> {
+//             // меняем дефолт пресетов при смене permissions
+//             const p = permissions.toUpperCase();
+//             if (p === "RW") setAclPresets(["kv_rw","metrics"]);
+//             else if (p === "W") setAclPresets(["kv_write","metrics"]);
+//             else setAclPresets(["kv_read","metrics"]);
+//         }, [permissions]);
+//
+//     async function save() {
+//         if (!nsId) return;
+//         const body = {
+//             serviceId: service.id,
+//             serviceName: service.name,
+//             permissions,
+//             patterns: patterns.split(",").map(s => s.trim()).filter(Boolean),
+//             rate: { readRps: Number(readRps || 0), writeRps: Number(writeRps || 0) },
+//             applyAcl,
+//             aclPresets,
+//             aclExtra: aclExtra.split(",").map(s => s.trim()).filter(Boolean),
+//         };
+//         const r = await fetch(`/api/projects/${projectId}/namespaces/${nsId}/bindings`, {
+//             method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+//         });
+//         if (!r.ok) return alert(`Bind HTTP ${r.status}`);
+//         const created = await r.json();
+//         onSaved?.({ ...created, nsId });
+//     }
+//     return (
+//         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+//             <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+//             <div className="relative mm-glass rounded-2xl p-4 w-full max-w-xl border border-white/10">
+//                 <div className="text-lg font-semibold mb-2">Bind namespace</div>
+//                 <div className="grid gap-3">
+//                     <Row label="Namespace">
+//                         <select className="mm-select w-full" value={nsId} onChange={(e)=>setNsId(e.target.value)}>
+//                             {namespaces.map(n => <option key={n.id} value={n.id}>{n.prefix}</option>)}
+//                         </select>
+//                     </Row>
+//                     <Row label="Permissions">
+//                         <select className="mm-select w-full" value={permissions} onChange={(e)=>setPermissions(e.target.value)}>
+//                             <option value="R">Read</option><option value="W">Write</option><option value="RW">Read/Write</option>
+//                         </select>
+//                     </Row>
+//                     <Row label="Key patterns">
+//                         <input className="mm-input w-full" value={patterns} onChange={(e)=>setPatterns(e.target.value)} placeholder="orders:*,customers:*" />
+//                     </Row>
+//                     <Row label="Rate limits">
+//                         <div className="grid grid-cols-2 gap-2">
+//                             <input className="mm-input" type="number" min={0} placeholder="read rps" value={readRps} onChange={(e)=>setReadRps(e.target.value)} />
+//                             <input className="mm-input" type="number" min={0} placeholder="write rps" value={writeRps} onChange={(e)=>setWriteRps(e.target.value)} />
+//                         </div>
+//                     </Row>
+//                     <Row label="ACL presets">
+//                         <div className="flex flex-wrap gap-2">
+//                             {["kv_read","kv_write","kv_rw","hash_rw","x_prod","x_cons","metrics"].map(name => (
+//                                 <button key={name}
+//                                         onClick={() => setAclPresets(cur => cur.includes(name) ? cur.filter(n=>n!==name) : [...cur, name])}
+//                                         className={`px-2 py-1 rounded-xl border ${aclPresets.includes(name) ? "bg-white/15 border-white/20" : "bg-white/5 border-white/10"}`}>
+//                                     {name}
+//                                 </button>
+//                             ))}
+//                         </div>
+//                     </Row>
+//                     <Row label="Extra ACL commands">
+//                         <input className="mm-input w-full" placeholder="+hget,+hexists" value={aclExtra} onChange={e=>setAclExtra(e.target.value)} />
+//                     </Row>
+//                     <div className="flex items-center gap-2">
+//                         <input id="applyAcl" type="checkbox" className="mm-checkbox" checked={applyAcl} onChange={e=>setApplyAcl(e.target.checked)} />
+//                         <label htmlFor="applyAcl" className="text-sm opacity-90">Apply ACL now</label>
+//                     </div>
+//
+//                 </div>
+//                 <div className="mt-4 flex justify-end gap-2">
+//                     <Button variant="ghost" onClick={onClose}>Cancel</Button>
+//                     <Button onClick={save} disabled={!nsId}>Bind</Button>
+//                 </div>
+//             </div>
+//         </div>
+//     );
+// }
+
+
 function Row({ label, children }) {
     return (<label className="grid grid-cols-[180px_1fr] items-center gap-3 my-2.5">
         <span className="opacity-80">{label}</span>{children}

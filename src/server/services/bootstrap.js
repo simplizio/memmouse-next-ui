@@ -1,6 +1,7 @@
 import { redis } from "../redis/client.js";
 import { ProjectRepo } from "../repos/ProjectRepo.js";
 import { NamespaceRepo } from "../repos/NamespaceRepo.js";
+import { AclPresetRepo } from "@/server/repos/AclPresetRepo.js";
 
 const BOOT_KEY = "mm:bootstrapped";
 
@@ -92,6 +93,8 @@ export async function ensureSeeded(opts = {}) {
             await NamespaceRepo.create(nsObj);
             createdNamespaces++;
         }
+
+        await AclPresetRepo.ensureDefaults();
     }
 
     if (createdProjects > 0 || createdNamespaces > 0) {
