@@ -1,3 +1,3 @@
 "use client";
-import ProjectsOverview from "@/components/projects/ProjectsOverview";
-export default function ProjectsPage(){ return <ProjectsOverview/>; }
+import ProjectsOverviewWidget from "@/components/projects/ProjectsOverviewWidget";
+export default function ProjectsOverviewPage(){ return <ProjectsOverviewWidget/>; }

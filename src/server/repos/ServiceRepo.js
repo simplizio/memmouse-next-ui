@@ -21,6 +21,17 @@ function mergeService(prev, patch) {
         out.acl = base.acl;
     }
 
+    // desiredAcl мерджим аккуратно
+    if (p.desiredAcl && typeof p.desiredAcl === "object" && !Array.isArray(p.desiredAcl)) {
+        const prevDesired = base.desiredAcl || {};
+        out.desiredAcl = {
+                  ...prevDesired,
+                  ...p.desiredAcl,
+                  presets: Array.isArray(p.desiredAcl.presets) ? p.desiredAcl.presets : (prevDesired.presets || []),
+                  extra: Array.isArray(p.desiredAcl.extra) ? p.desiredAcl.extra : (prevDesired.extra || []),
+        };
+    }
+
     return out;
 }
 
@@ -33,6 +44,17 @@ function mergeForPatch(prev = {}, patch = {}) {
 
         if (k === "acl" && v && typeof v === "object" && !Array.isArray(v)) {
             out.acl = { ...(prev.acl || {}), ...v };  // глубокий мердж ACL
+            continue;
+        }
+
+        if (k === "desiredAcl" && v && typeof v === "object" && !Array.isArray(v)) {
+            const cur = prev.desiredAcl || {};
+            out.desiredAcl = {
+                        ...cur,
+                        ...v,
+                        presets: Array.isArray(v.presets) ? v.presets : (cur.presets || []),
+                        extra: Array.isArray(v.extra) ? v.extra : (cur.extra || []),
+                      };
             continue;
         }
 

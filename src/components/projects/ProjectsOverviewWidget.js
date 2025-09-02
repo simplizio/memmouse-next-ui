@@ -5,7 +5,7 @@ import ProjectWizard from "@/components/projects/ProjectWizard";
 import { Button } from "@/components/ui/button";
 import StickyNavbar from "@/components/navigation/StickyNavbar";
 
-export default function ProjectsOverview() {
+export default function ProjectsOverviewWidget() {
     const [projects, setProjects] = useState(null);  // null = loading
     const [error, setError] = useState(null);
     const [search, setSearch] = useState("");

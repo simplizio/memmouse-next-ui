@@ -173,10 +173,10 @@ export default function ServiceTokensPanel({ projectId, service }) {
                     {loading && (
                         <tr><td colSpan={5} className="py-4 opacity-60">Loading…</td></tr>
                     )}
-                    {!loading && items.length === 0 && (
+                    {!loading && service.tokens.length === 0 && (
                         <tr><td colSpan={5} className="py-4 opacity-60">No tokens yet.</td></tr>
                     )}
-                    {!loading && items.map(t => (
+                    {!loading && service.tokens.map(t => (
                         <tr key={t.id} className="border-t border-white/5">
                             <td className="py-2 font-mono">{t.id}</td>
                             <td className="py-2">
@@ -190,6 +190,7 @@ export default function ServiceTokensPanel({ projectId, service }) {
                                         <Button variant="ghost" onClick={() => revoke(t.id)}>Revoke</Button>
                                     )}
                                     <Button variant="ghost" onClick={() => purge(t.id)}>Purge</Button>
+                                    <Button variant="ghost" onClick={() => copy(t.value)}>Copy</Button>
                                 </div>
                             </td>
                         </tr>
@@ -206,3 +207,5 @@ export default function ServiceTokensPanel({ projectId, service }) {
         </div>
     );
 }
+
+function copy(s) { navigator.clipboard.writeText(s).catch(() => {}); }

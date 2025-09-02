@@ -1,248 +1,138 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import BindingManager from "@/components/bindings/BindingManager";
+import { useBindingManagerStore } from "@/store/BindingManagerStore";
 
-function mapPermToPresets(p) {
-    const x = String(p || "R").toUpperCase();
-    if (x === "RW") return ["kv_rw", "metrics"];
-    if (x === "W")  return ["kv_write", "metrics"];
-    return ["kv_read", "metrics"];
-}
-
-function Row({ label, children }) {
-    return (
-        <div className="grid grid-cols-3 gap-3 items-center">
-            <div className="text-sm opacity-80">{label}</div>
-            <div className="col-span-2">{children}</div>
-        </div>
-    );
-}
-
-export default function QuickBindModal({ projectId, service, namespaces = [], open, onClose, onSaved }) {
-    const [nsId, setNsId] = useState(namespaces[0]?.id || "");
-    const [permissions, setPermissions] = useState("R");
-    const [patterns, setPatterns] = useState(""); // "orders:*"
-    const [readRps, setReadRps] = useState(0);
-    const [writeRps, setWriteRps] = useState(0);
-
-    // ACL extras
-    const [applyAcl, setApplyAcl] = useState(true);
-    const [presets, setPresets] = useState([]);
-    const [selectedPresets, setSelectedPresets] = useState(["kv_read", "metrics"]);
-    const [aclExtra, setAclExtra] = useState("");
-
-    // Preview/Test result
-    const [preview, setPreview] = useState(null);
-    const [testRes, setTestRes] = useState(null);
+export default function QuickBindModal({
+                                           open = true,
+                                           onClose,
+                                           projectId,
+                                           service,           // { id, name }
+                                           namespaces = [],   // список всех доступных неймспейсов проекта
+                                           existingNsIds,     // опционально: Set<string> уже привязанных ns к сервису (если есть сверху — используем, иначе подгрузим)
+                                           onSaved,           // (binding) => void — уведомить родителя по факту сохранения одного биндинга (будет вызываться множественно)
+                                       }) {
+    const [existing, setExisting] = useState([]); // [{ nsId, serviceId, ... }]
+    const [err, setErr] = useState(null);
     const [saving, setSaving] = useState(false);
-    const [error, setError] = useState(null);
-    const [auxMsg, setAuxMsg] = useState(null);
+    const serviceId = service?.id;
 
-    const ns = useMemo(() => namespaces.find(n => n.id === nsId), [namespaces, nsId]);
+    const managerRef = useRef(null);
 
+    // если сверху не передали Set уже привязанных, подгружаем сами
     useEffect(() => {
-        if (!open) return;
-        setError(null);
-        setAuxMsg(null);
-        setPreview(null);
-        setTestRes(null);
-
-        // default patterns под выбранный ns
-        if (!patterns && ns?.prefix) {
-            setPatterns(`${ns.prefix}*`);
-        }
-        // тянем ACL пресеты
-        fetch("/api/acl/presets")
-            .then(r => r.ok ? r.json() : Promise.reject(r.status))
-            .then(({ items }) => setPresets(items || []))
-            .catch(() => setPresets([]));
-    }, [open, nsId]);
-
-    useEffect(() => {
-        setSelectedPresets(mapPermToPresets(permissions));
-    }, [permissions]);
-
-    function togglePreset(name) {
-        setSelectedPresets(cur => cur.includes(name) ? cur.filter(n => n !== name) : [...cur, name]);
-    }
-
-    async function buildPreview() {
-        setError(null); setPreview(null); setTestRes(null);
-        try {
-            const body = {
-                presets: selectedPresets,
-                extra: aclExtra.split(",").map(s => s.trim()).filter(Boolean),
-                dryRun: true,
-            };
-            const r = await fetch(`/api/projects/${projectId}/services/${service.id}/acl/apply`, {
-                method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-            });
-            const j = await r.json();
-            if (!r.ok) throw new Error(j?.error || `HTTP ${r.status}`);
-            setPreview(j);
-            // Подсказка: до сохранения этого биндинга паттернов может не быть в превью
-            if (!j.keyPatterns?.length) {
-                setAuxMsg("Preview uses existing bindings only. Save this binding to include its patterns.");
-            } else {
-                setAuxMsg(null);
+        if (!open || !projectId || !serviceId) return;
+        if (existingNsIds instanceof Set) return; // используем внешний источник
+        (async () => {
+            try {
+                setErr(null);
+                const r = await fetch(`/api/projects/${projectId}/services/${serviceId}/bindings`, { cache: "no-store" });
+                const j = await r.json().catch(() => ({}));
+                if (!r.ok) throw new Error(j?.error || `HTTP ${r.status}`);
+                setExisting(j.items || []);
+            } catch (e) {
+                setErr(String(e?.message || e));
             }
-        } catch (e) {
-            setError(String(e?.message || e));
-        }
-    }
+        })();
+    }, [open, projectId, serviceId, existingNsIds instanceof Set]);
 
-    async function testAccess() {
-        setError(null); setTestRes(null);
+    // множество уже связанных nsId
+    const normalizedExistingNsIds = useMemo(() => {
+        if (existingNsIds instanceof Set) return existingNsIds;
+        if (Array.isArray(existing) && existing.length) {
+            const ids = existing.map(x => x?.nsId || x?.ns?.id).filter(Boolean);
+            return new Set(ids);
+        }
+        return new Set();
+    }, [existingNsIds, existing]);
+
+    // доступные для быстрого привязывания ns (фильтруем уже связанные)
+    const available = useMemo(() => {
+        const bound = normalizedExistingNsIds;
+        return (namespaces || []).filter(ns => !bound.has(ns.id));
+    }, [namespaces, normalizedExistingNsIds]);
+
+    async function saveCreate() {
+        setErr(null); setSaving(true);
         try {
-            const body = {
-                presets: selectedPresets,
-                extra: aclExtra.split(",").map(s => s.trim()).filter(Boolean),
-                op: "rw",
-            };
-            const r = await fetch(`/api/projects/${projectId}/services/${service.id}/acl/test`, {
-                method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-            });
-            const j = await r.json();
-            if (!r.ok) throw new Error(j?.error || `HTTP ${r.status}`);
-            setTestRes(j);
-            if (!j.canWrite && permissions.toUpperCase().includes("W")) {
-                setAuxMsg("Write denied in test likely because new binding is not saved yet.");
+            const bm = useBindingManagerStore.getState();
+            const selected = bm.getSelectedNsIds ? Array.from(bm.getSelectedNsIds()) : [];
+            if (!selected.length) throw new Error("Select at least one namespace");
+
+            // сохраняем ВСЁ через BindingManagerStore (он знает драфты, паттерны и т.д.)
+            await bm.saveAll({ projectId, serviceId });
+
+            // при необходимости — уведомим родителя о каждом сохранённом биндинге
+            if (typeof onSaved === "function" && bm.getSelectedDrafts) {
+                const savedDrafts = bm.getSelectedDrafts();
+                for (const d of savedDrafts) {
+                    onSaved({
+                        projectId,
+                        nsId: d.nsId,
+                        serviceId,
+                        serviceName: service?.name || serviceId,
+                        keyPatterns: d.keyPatterns || [],
+                        permissions: d.permissions || { read: true, write: true },
+                        rate: d.rate || { readRps:0, writeRps:0 },
+                        bandwidth: d.bandwidth || { readKbps:0, writeKBps: 0 },
+                        updatedAt: Date.now(),
+                        createdAt: Date.now(),
+                    });
+                }
             }
-        } catch (e) {
-            setError(String(e?.message || e));
-        }
-    }
 
-    async function save() {
-        setSaving(true); setError(null);
-        try {
-            const body = {
-                serviceId: service.id,
-                serviceName: service.name,
-                permissions,
-                patterns: patterns.split(",").map(s => s.trim()).filter(Boolean),
-                rate: { readRps: Number(readRps || 0), writeRps: Number(writeRps || 0) },
-                applyAcl,
-                aclPresets: selectedPresets,
-                aclExtra: aclExtra.split(",").map(s => s.trim()).filter(Boolean),
-            };
-            const r = await fetch(`/api/projects/${projectId}/namespaces/${nsId}/bindings`, {
-                method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-            });
-            const j = await r.json();
-            if (!r.ok) throw new Error(j?.error || `HTTP ${r.status}`);
-            onSaved?.({ ...(j.binding || j), nsId });
-            // после сохранения можно обновить превью (уже с новым биндингом)
-            setPreview(null); setTestRes(null);
-            setAuxMsg("Binding saved. You can Preview/Test again to include the new patterns.");
-            setSaving(false);
-            // onClose?.(); // оставим открытой, чтобы можно было нажать Preview/Test ещё раз
+            onClose?.();
         } catch (e) {
+            setErr(String(e?.message || e));
+        } finally {
             setSaving(false);
-            setError(String(e?.message || e));
         }
     }
 
     if (!open) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50">
+            {/* overlay */}
             <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-            <div className="relative mm-glass rounded-2xl p-5 w-full max-w-3xl border border-white/10">
-                <div className="flex items-center justify-between mb-3">
-                    <div className="text-lg font-semibold">Bind service to namespace</div>
-                    <button onClick={onClose} className="px-2 py-1 rounded-xl hover:bg-white/10">✕</button>
-                </div>
-
-                <div className="grid gap-4">
-                    <Row label="Namespace">
-                        <select className="mm-input w-full" value={nsId} onChange={e=>setNsId(e.target.value)}>
-                            {namespaces.map(ns => <option key={ns.id} value={ns.id}>{ns.name || ns.prefix || ns.id}</option>)}
-                        </select>
-                    </Row>
-
-                    <Row label="Permissions">
-                        <div className="flex gap-2">
-                            {["R","W","RW"].map(p => (
-                                <button key={p} onClick={()=>setPermissions(p)}
-                                        className={`px-2 py-1 rounded-xl border ${permissions===p?"bg-white/15 border-white/20":"bg-white/5 border-white/10"}`}>
-                                    {p}
-                                </button>
-                            ))}
+            {/* modal */}
+            <div className="absolute inset-0 flex items-center justify-center p-4">
+                <div className="relative mm-glass rounded-2xl w-full max-w-3xl border border-white/10">
+                    <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
+                        <div className="text-lg font-semibold">
+                            Bind namespaces to {service?.name || service?.id}
                         </div>
-                    </Row>
-
-                    <Row label="Key patterns">
-                        <input className="mm-input w-full"
-                               placeholder={ns?.prefix ? `${ns.prefix}*` : "orders:*"}
-                               value={patterns}
-                               onChange={e=>setPatterns(e.target.value)} />
-                    </Row>
-
-                    <Row label="Rate limit (R/W RPS)">
-                        <div className="flex gap-2">
-                            <input className="mm-input w-24" type="number" min="0" value={readRps} onChange={e=>setReadRps(e.target.value)} />
-                            <input className="mm-input w-24" type="number" min="0" value={writeRps} onChange={e=>setWriteRps(e.target.value)} />
-                        </div>
-                    </Row>
-
-                    <div className="mt-1 flex items-center gap-2">
-                        <input id="applyAcl" type="checkbox" className="mm-checkbox" checked={applyAcl} onChange={e=>setApplyAcl(e.target.checked)} />
-                        <label htmlFor="applyAcl" className="text-sm opacity-90">Apply ACL after saving</label>
+                        <button onClick={onClose} className="px-2 py-1 rounded-xl hover:bg-white/10">✕</button>
                     </div>
 
-                    {applyAcl && (
-                        <div className="mm-glass rounded-xl p-3 border border-white/10">
-                            <div className="text-sm font-medium mb-2">ACL presets</div>
-                            <div className="flex flex-wrap gap-2">
-                                {presets.map(p => (
-                                    <button key={p.name} onClick={()=>togglePreset(p.name)}
-                                            className={`px-2 py-1 rounded-xl border ${selectedPresets.includes(p.name)?"bg-white/15 border-white/20":"bg-white/5 border-white/10"}`}>
-                                        {p.name}
-                                    </button>
-                                ))}
-                            </div>
-
-                            <div className="mt-3">
-                                <div className="text-sm mb-1 opacity-80">Extra ACL commands (comma-separated)</div>
-                                <input className="mm-input w-full" placeholder="+xread,+xreadgroup" value={aclExtra} onChange={e=>setAclExtra(e.target.value)} />
-                            </div>
-
-                            <div className="mt-3 flex gap-2">
-                                <Button variant="ghost" onClick={buildPreview}>Preview</Button>
-                                <Button variant="ghost" onClick={testAccess}>Test</Button>
-                            </div>
-
-                            {preview && (
-                                <div className="mt-3 text-xs opacity-80">
-                                    <div className="font-semibold mb-1">Preview</div>
-                                    <div className="font-mono break-words">{preview.preview}</div>
-                                    <div className="mt-1">Patterns: {preview.keyPatterns?.join(", ") || "—"}</div>
-                                </div>
-                            )}
-
-                            {testRes && (
-                                <div className="mt-3 mm-glass rounded-xl p-3 text-sm">
-                                    <div className="font-semibold mb-1">Test result</div>
-                                    <div className="opacity-80">sample key: <code className="font-mono">{testRes.key}</code></div>
-                                    <div className="mt-1">Read: {testRes.canRead ? "✅ allowed" : "❌ denied"} {testRes.readErr && <span className="opacity-70">({testRes.readErr})</span>}</div>
-                                    <div>Write: {testRes.canWrite ? "✅ allowed" : "❌ denied"} {testRes.writeErr && <span className="opacity-70">({testRes.writeErr})</span>}</div>
-                                </div>
-                            )}
+                    <div className="px-5 pt-3 pb-5 max-h-[70vh] overflow-y-auto">
+                        <div className="text-xs text-zinc-400 mb-3">
+                            This only configures key patterns and limits; ACL presets are applied at the service level.
                         </div>
-                    )}
 
-                    {auxMsg && (
-                        <div className="p-2 rounded-xl bg-yellow-500/10 border border-yellow-500/20 text-yellow-200 text-sm">{auxMsg}</div>
-                    )}
-                    {error && (
-                        <div className="p-2 rounded-xl bg-red-500/10 border border-red-500/20 text-red-300 text-sm">{error}</div>
-                    )}
+                        <BindingManager
+                            ref={managerRef}
+                            projectId={projectId}
+                            serviceId={serviceId}
+                            namespaces={available}
+                            initialBindings={[]} // создаём новые
+                            onSavedOne={(b) => onSaved?.(b)}
+                        />
 
-                    <div className="flex gap-2">
-                        <Button onClick={save} disabled={saving}>{saving ? "Saving…" : "Save binding"}</Button>
+                        {err && (
+                            <div className="mt-3 p-2 rounded-xl bg-red-500/10 border border-red-500/20 text-red-300 text-sm">
+                                {err}
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="px-5 py-3 border-t border-white/10 flex items-center justify-end gap-2">
                         <Button variant="ghost" onClick={onClose}>Cancel</Button>
+                        <Button onClick={saveCreate} disabled={saving}>
+                            {saving ? "Saving…" : "Save"}
+                        </Button>
                     </div>
                 </div>
             </div>

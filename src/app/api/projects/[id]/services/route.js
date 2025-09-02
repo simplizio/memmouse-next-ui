@@ -15,26 +15,38 @@ export async function POST(req, { params }) {
     const name = String(body.name || "").trim();
     if (!name) return NextResponse.json({ error: "name required" }, { status: 400 });
 
+    console.log(JSON.stringify(body));
+
     const now = Date.now();
     const service = {
         projectId,
-        id: (body.id && String(body.id).trim()) || ulid(), // ← генерим id, если не прислали
+        id: (body.id && String(body.id).trim()) || ulid(),
         name,
+        description: body.description ? String(body.description) : undefined,
         scopes: Array.isArray(body.scopes) ? body.scopes : [],
+        desiredAcl: (body.desiredAcl && typeof body.desiredAcl === "object")
+            ? {
+                presets: Array.isArray(body.desiredAcl.presets) ? body.desiredAcl.presets : [],
+                extra: Array.isArray(body.desiredAcl.extra) ? body.desiredAcl.extra : [],
+            }
+            : { presets: [], extra: [] },
         tokens: [{ id: "t1", value: makeToken(), createdAt: now, status: "active" }],
         createdAt: now,
         updatedAt: now,
     };
 
     const saved = await (ServiceRepo.upsert ? ServiceRepo.upsert(service) : ServiceRepo.create(service));
-    return NextResponse.json({ service: saved }, { status: 201 }); // ← единый формат
+    return NextResponse.json({ service: saved }, { status: 201 });
 }
+
 
 export async function GET(_req, { params }) {
     const { id } = await params;
-    const items = await ServiceRepo.list(id);
+    const res = await ServiceRepo.list(id).catch(() => ({ items: [] }));
+    const items = Array.isArray(res) ? res : (res?.items || []);
     return NextResponse.json({ items });
 }
+
 
 // best-effort: drop redis user if exists
 async function dropAclUsers(projectId, service) {
@@ -74,7 +86,7 @@ export async function DELETE(_req, { params }) {
     await dropAclUsers(projectId, svc);
 
     // 2) unbind all service bindings (and indexes)
-    const nsIds = await BindingRepo.listNamespacesForService(projectId, serviceId).catch(() => []);
+    const nsIds = await BindingRepo.listByService(projectId, serviceId).catch(() => []);
     for (const nsId of nsIds) {
         try { await BindingRepo.remove(projectId, nsId, serviceId); } catch (_) {}
     }

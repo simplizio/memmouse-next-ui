@@ -17,7 +17,7 @@ export async function GET(req, { params }) {
     if (!ok) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
     // берём только те nsId, где есть биндинг этого сервиса
-    const nsIds = await BindingRepo.listNamespacesForService(id, serviceId);
+    const nsIds = await BindingRepo.listByService(id, serviceId);
 
     const bindings = [];
     for (const nsId of nsIds) {

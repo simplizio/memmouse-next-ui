@@ -25,7 +25,7 @@ export async function collectKeyPatterns(projectId, serviceId) {
     const { BindingRepo }   = await import("@/server/repos/BindingRepo.js");
     const { NamespaceRepo } = await import("@/server/repos/NamespaceRepo.js");
 
-    const nsIds = await BindingRepo.listNamespacesForService(projectId, serviceId).catch(() => []);
+    const nsIds = await BindingRepo.listByService(projectId, serviceId).catch(() => []);
     const set = new Set();
     for (const nsId of nsIds) {
         const b = await BindingRepo.get(projectId, nsId, serviceId).catch(() => null);

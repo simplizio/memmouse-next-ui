@@ -28,6 +28,7 @@ export async function POST(req, { params }) {
         if (!body.dryRun) {
             await ServiceRepo.patch(projectId, serviceId, {
                 redisUser: res.username,
+                redisPass: res.secret,
                 lastAclAppliedAt: Date.now(),
                 acl: {
                     presetsApplied: Array.isArray(body.presets) ? body.presets : [],
@@ -254,7 +255,7 @@ export async function POST(req, { params }) {
 //         if (b?.patterns?.length) {
 //             b.patterns.forEach((p) => patterns.add(p));
 //         } else {
-//             // fallback: take namespace prefix and add '*'
+//             // fallback: take namespaces prefix and add '*'
 //             const ns = await NamespaceRepo.get(projectId, nsId);
 //             if (ns?.prefix) patterns.add(`${ns.prefix}*`);
 //         }
