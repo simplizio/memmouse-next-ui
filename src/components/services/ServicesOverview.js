@@ -3,6 +3,7 @@ import {useProject} from "@/components/projects/ProjectProvider";
 import {Button} from "@/components/ui/button";
 import Link from "next/link";
 import ServiceWizard from "@/components/services/ServiceWizard";
+import {useBreadcrumbsStore} from "@/store/BreadcrumbStore";
 
 export default function ServicesOverview() {
     const { id: projectId } = useProject();
@@ -45,16 +46,12 @@ export default function ServicesOverview() {
         }
     }
 
-    useEffect(() => { if (projectId) load(); }, [projectId]);
+    useEffect(
+        () => {
+                if (projectId) load().then(r => {});
+                useBreadcrumbsStore.getState().announce({ role: "section", projectId: projectId, sectionId: "services", sectionName: "Services" });
+            }, [projectId]);
 
-    // async function rotateToken(svc) {
-    //     try {
-    //         const r = await fetch(`/api/projects/${projectId}/services/${svc.id}/rotate`, { method: "POST" });
-    //         if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    //         const { service } = await r.json();
-    //         setItems(prev => prev.map(x => x.id === service.id ? service : x));
-    //     } catch (e) { console.error(e); }
-    // }
 
     async function downloadConfig(svc) {
         const token = (svc.tokens || []).find(t => t.status === "active")?.value;

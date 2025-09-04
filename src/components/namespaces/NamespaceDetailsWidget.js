@@ -6,6 +6,7 @@ import NamespacePolicyModal from "@/components/namespaces/NamespacePolicyModal";
 import BindingEditModal from "@/components/bindings/BindingEditModal";
 import {useNamespaceBindingsStore} from "@/store/NamespaceBindingStore";
 import NamespaceBindingsPanel from "@/components/bindings/NamespaceBindingsPanel";
+import {useBreadcrumbsStore} from "@/store/BreadcrumbStore";
 
 export default function NamespaceDetailsWidget() {
     const { id, nsId } = useParams();
@@ -13,14 +14,19 @@ export default function NamespaceDetailsWidget() {
     const [events, setEvents] = useState(null);
 
     const [bindOpen, setBindOpen] = useState(false);
-    const [bindMode, setBindMode] = useState("create"); // "create" | "edit"
-    const [editBinding, setEditBinding] = useState(null);
 
     const [editCtx, setEditCtx] = useState(null); // { binding, service }
 
     const { ns, bindings, services, error, loading, load, addOrReplace, remove, refreshOne } = useNamespaceBindingsStore();
 
     useEffect(() => { if (id && nsId) load(id, nsId).then(()=>{}); }, [id, nsId, load]);
+
+    useEffect(() => {
+        if (!id || !nsId) return;
+        useBreadcrumbsStore.getState().announce({ role: "section", projectId: id, sectionId: "namespaces", sectionName: "Namespaces" });
+        useBreadcrumbsStore.getState().announce({ role: "namespace", projectId: id, id: nsId, nsName: ns?.name || nsId }, [{ label: "Details" }]);
+    }, [id, nsId, ns?.name]);
+
 
     // const [services, setServices] = useState([]);
     const availableServices =   useMemo(() => {

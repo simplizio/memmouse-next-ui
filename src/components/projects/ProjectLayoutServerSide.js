@@ -3,21 +3,19 @@ import Breadcrumbs from "@/components/navigation/Breadcrumbs";
 import ProjectSidebar from "@/components/projects/ProjectSidebar";
 import { getProjectCached } from "@/server/services/project.fetch";
 import { ProjectProvider } from "@/components/projects/ProjectProvider";
+import {useBreadcrumbsStore} from "@/store/BreadcrumbStore";
 
 export default async function ProjectLayoutServerSide({ children, params }) {
     const { id } = params;
     const project = await getProjectCached(id);
     const name = project?.name || id;
 
+    useBreadcrumbsStore.getState().announce({ role: "projects"}, [{ label: "All" }]);
+
     return (
         <div className="min-h-screen">
             <StickyNavbar />
             <Breadcrumbs
-                items={[
-                    { label: "Workspace", href: "/" },
-                    { label: "Projects", href: "/projects" },
-                    { label: name },
-                ]}
             />
             <ProjectProvider value={{ id, name }}>
                 <div className="pt-2 px-4 flex gap-4">

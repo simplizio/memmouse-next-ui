@@ -4,6 +4,7 @@ import {useRouter} from "next/navigation";
 import {Button} from "@/components/ui/button";
 import NamespaceList from "@/components/namespaces/NamespaceList";
 import NamespaceWizard from "@/components/namespaces/NamespaceWizard";
+import {useBreadcrumbsStore} from "@/store/BreadcrumbStore";
 
 export default function NamespacesOverviewWidget() {
     const { id, name } = useProject(); // из Provider в layout
@@ -14,6 +15,7 @@ export default function NamespacesOverviewWidget() {
     const [error, setError] = useState(null);
     const router = useRouter();
 
+
     useEffect(() => {
         let cancel = false;
         async function load() {
@@ -22,11 +24,12 @@ export default function NamespacesOverviewWidget() {
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const { items } = await res.json();
                 if (!cancel) setItems(items || []);
+                useBreadcrumbsStore.getState().announce({ role: "section", projectId: id, sectionId: "namespaces", sectionName: "Namespaces" });
             } catch (e) {
                 if (!cancel) setError(String(e));
             }
         }
-        if (id) load();
+        if (id) load().then(r => {});
         return () => { cancel = true; };
     }, [id]);
 

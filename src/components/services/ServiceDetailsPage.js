@@ -11,6 +11,7 @@ import ServiceTokensPanel from "@/components/services/ServiceTokensPanel";
 import BindingEditModal from "@/components/bindings/BindingEditModal";
 import { useServiceDetailsStore } from "@/store/ServiceDetailsStore";
 import BindingListPanel from "@/components/bindings/BindingListPanel";
+import {useBreadcrumbsStore} from "@/store/BreadcrumbStore";
 
 export default function ServiceDetailsPage() {
     const { id: projectId, name: projectName } = useProject();
@@ -27,6 +28,13 @@ export default function ServiceDetailsPage() {
         if (!projectId || !serviceId) return;
         load(projectId, serviceId).then(r => {});
     }, [projectId, serviceId, load]);
+
+    useEffect(() => {
+        if (!projectId || !svc?.id) return;
+        useBreadcrumbsStore.getState().announce({ role: "section", projectId: projectId, sectionId: "services", sectionName: "Services" });
+        useBreadcrumbsStore.getState().announce({ role: "service", projectId: projectId, id: svc.id, serviceName: svc.name }, [{ label: "Details" }]);
+    }, [projectId, svc?.id, svc?.name]);
+
 
     const activeToken = useMemo(
         () => (svc?.tokens || []).find(t => t.status === "active"),
